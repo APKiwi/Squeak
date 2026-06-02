@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "G502Battery",
+    name: "Squeak",
     platforms: [.macOS(.v14)],
     targets: [
         .target(
@@ -10,15 +10,15 @@ let package = Package(
             path: "Sources/HIDPPKit"
         ),
         .executableTarget(
-            name: "G502Battery",
+            name: "Squeak",
             dependencies: ["HIDPPKit"],
-            path: "Sources/G502Battery"
+            path: "Sources/Squeak"
         ),
         // Plain CLI for debugging the HID++ layer without the SwiftUI launch path.
         .executableTarget(
-            name: "g502probe",
+            name: "squeakprobe",
             dependencies: ["HIDPPKit"],
-            path: "Sources/g502probe"
+            path: "Sources/squeakprobe"
         ),
     ]
 )

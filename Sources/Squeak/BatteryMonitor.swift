@@ -14,8 +14,8 @@ final class BatteryMonitor: ObservableObject {
     private var timer: Timer?
 
     init() {
-        // Set G502_DEBUG=1 to dump HID++ traffic + readings to stderr.
-        if ProcessInfo.processInfo.environment["G502_DEBUG"] != nil { hid.verbose = true }
+        // Set SQUEAK_DEBUG=1 to dump HID++ traffic + readings to stderr.
+        if ProcessInfo.processInfo.environment["SQUEAK_DEBUG"] != nil { hid.verbose = true }
         hid.start()
         // The receiver can take a moment to enumerate, and the mouse may be asleep.
         // Retry quickly until we get a first reading, then settle into a slow poll.
@@ -96,7 +96,7 @@ final class BatteryMonitor: ObservableObject {
                     self.state = r.state
                     self.status = r.detail
                     self.lastUpdated = Date()
-                    if ProcessInfo.processInfo.environment["G502_DEBUG"] != nil {
+                    if ProcessInfo.processInfo.environment["SQUEAK_DEBUG"] != nil {
                         FileHandle.standardError.write(Data("APP READING: \(r.percent)% \(r.state)\n".utf8))
                     }
                 case .failure(let e):

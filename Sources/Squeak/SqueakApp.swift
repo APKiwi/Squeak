@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 @main
-struct G502BatteryApp: App {
+struct SqueakApp: App {
     @StateObject private var monitor = BatteryMonitor()
 
     init() {
