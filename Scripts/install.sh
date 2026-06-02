@@ -17,6 +17,10 @@ mkdir -p "$DEST"
 rm -rf "$DEST/Squeak.app"
 cp -R "$HERE/Squeak.app" "$DEST/"
 
+# Launch via `open`, not by exec'ing the binary: a SwiftUI MenuBarExtra app started
+# directly by launchd doesn't get an Aqua/WindowServer session and exits immediately
+# with no menu-bar item. `open -W` hands it to LaunchServices (proper GUI session) and
+# waits, so launchd tracks the app's real lifetime.
 mkdir -p "$HOME/Library/LaunchAgents"
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -27,7 +31,9 @@ cat > "$PLIST" <<EOF
     <string>$LABEL</string>
     <key>ProgramArguments</key>
     <array>
-        <string>$DEST/Squeak.app/Contents/MacOS/Squeak</string>
+        <string>/usr/bin/open</string>
+        <string>-W</string>
+        <string>$DEST/Squeak.app</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
