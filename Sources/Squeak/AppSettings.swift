@@ -8,18 +8,27 @@ import Combine
 final class AppSettings: ObservableObject {
     enum Keys {
         static let showPercentInMenuBar = "showPercentInMenuBar"
-        static let pollIntervalMinutes = "pollIntervalMinutes"
+        static let pollIntervalSeconds = "pollIntervalSeconds"
     }
 
-    static let defaultPollIntervalMinutes = 2
-    static let pollIntervalChoices = [1, 2, 5, 10, 30]
+    static let defaultPollIntervalSeconds = 120
+    static let pollIntervalChoices = [10, 30, 60, 120, 300]
+
+    /// Human label for a poll interval, e.g. "Every 30 seconds" / "Every 2 minutes".
+    static func pollIntervalLabel(_ seconds: Int) -> String {
+        switch seconds {
+        case ..<60: return "Every \(seconds) seconds"
+        case 60:    return "Every minute"
+        default:    return "Every \(seconds / 60) minutes"
+        }
+    }
 
     @Published var showPercentInMenuBar: Bool {
         didSet { defaults.set(showPercentInMenuBar, forKey: Keys.showPercentInMenuBar) }
     }
 
-    @Published var pollIntervalMinutes: Int {
-        didSet { defaults.set(pollIntervalMinutes, forKey: Keys.pollIntervalMinutes) }
+    @Published var pollIntervalSeconds: Int {
+        didSet { defaults.set(pollIntervalSeconds, forKey: Keys.pollIntervalSeconds) }
     }
 
     private let defaults: UserDefaults
@@ -35,9 +44,9 @@ final class AppSettings: ObservableObject {
 
         // `integer(forKey:)` returns 0 when unset; 0 is not a valid choice so it falls
         // back to the default. Also guards against any out-of-range stored value.
-        let stored = defaults.integer(forKey: Keys.pollIntervalMinutes)
-        self.pollIntervalMinutes = AppSettings.pollIntervalChoices.contains(stored)
+        let stored = defaults.integer(forKey: Keys.pollIntervalSeconds)
+        self.pollIntervalSeconds = AppSettings.pollIntervalChoices.contains(stored)
             ? stored
-            : AppSettings.defaultPollIntervalMinutes
+            : AppSettings.defaultPollIntervalSeconds
     }
 }

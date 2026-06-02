@@ -30,18 +30,18 @@ final class BatteryMonitor: ObservableObject {
             }
         }
 
-        scheduleTimer(minutes: settings.pollIntervalMinutes)
+        scheduleTimer(seconds: settings.pollIntervalSeconds)
         // Reschedule whenever the user changes the interval in Settings. dropFirst skips
         // the value we just scheduled with above.
-        settings.$pollIntervalMinutes
+        settings.$pollIntervalSeconds
             .dropFirst()
-            .sink { [weak self] minutes in self?.scheduleTimer(minutes: minutes) }
+            .sink { [weak self] seconds in self?.scheduleTimer(seconds: seconds) }
             .store(in: &cancellables)
     }
 
-    private func scheduleTimer(minutes: Int) {
+    private func scheduleTimer(seconds: Int) {
         timer?.invalidate()
-        let interval = TimeInterval(max(1, minutes) * 60)
+        let interval = TimeInterval(max(1, seconds))
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }

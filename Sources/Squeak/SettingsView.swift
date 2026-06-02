@@ -26,10 +26,10 @@ struct SettingsView: View {
 
             Toggle("Show percentage in menu bar", isOn: $settings.showPercentInMenuBar)
 
-            Picker("Update frequency", selection: $settings.pollIntervalMinutes) {
-                ForEach(AppSettings.pollIntervalChoices, id: \.self) { minutes in
-                    Text(minutes == 1 ? "Every minute" : "Every \(minutes) minutes")
-                        .tag(minutes)
+            Picker("Update frequency", selection: $settings.pollIntervalSeconds) {
+                ForEach(AppSettings.pollIntervalChoices, id: \.self) { seconds in
+                    Text(AppSettings.pollIntervalLabel(seconds))
+                        .tag(seconds)
                 }
             }
         }
