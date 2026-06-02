@@ -50,11 +50,12 @@ public final class HIDPP: @unchecked Sendable {
     private let lock = NSLock()
     private var responseSem = DispatchSemaphore(value: 0)
     private var expectedFeature: UInt8 = 0xFF
+    private var expectedDeviceIndex: UInt8 = 0xFF
     private var lastResponse: [UInt8] = []
 
     // pairing slot to talk to; we try 0x01 first then 0xFF.
     public var deviceIndex: UInt8 = 0x01
-    public var verbose = true
+    public var verbose = false  // probe flips this on; the app leaves it quiet
 
     public init() {}
 
@@ -113,14 +114,20 @@ public final class HIDPP: @unchecked Sendable {
         log("<- " + bytes.map { String(format: "%02X", $0) }.joined(separator: " "))
         // Frame: [reportID, deviceIndex, featureIndex, funcID|swID, params…]
         // Error frame: [reportID, deviceIndex, 0x8F, failedFeatureIndex, funcID|swID, errorCode]
+        let deviceIdx = bytes[1]
         let isError = bytes[2] == 0x8F
+        // ERR_BUSY (0x08) is a transient "processing" ack the receiver sends right before
+        // the real reply arrives as a separate (usually long) report. Ignore it and keep waiting.
+        if isError && bytes.count >= 6 && bytes[5] == 0x08 { return }
         let feature = isError ? bytes[3] : bytes[2]
         let swid = isError ? (bytes[4] & 0x0F) : (bytes[3] & 0x0F)
         lock.lock()
-        let waiting = expectedFeature
+        let waitFeature = expectedFeature
+        let waitDevice = expectedDeviceIndex
         lock.unlock()
-        // Match our outstanding request by swID; accept both normal and error replies.
-        if swid == kSwID && (feature == waiting || isError) {
+        // Match our outstanding request by device index + swID + feature (or error).
+        // This rejects unsolicited receiver notifications and replies for other slots.
+        if deviceIdx == waitDevice && swid == kSwID && (feature == waitFeature || isError) {
             lock.lock(); lastResponse = bytes; lock.unlock()
             responseSem.signal()
         }
@@ -130,8 +137,10 @@ public final class HIDPP: @unchecked Sendable {
 
     /// Sends one HID++ request and waits for the matching reply. Runs on the caller's thread
     /// (not `queue`), so the callback on `queue` can signal the semaphore without deadlock.
+    /// Retries on ERR_BUSY (0x08), which the receiver returns transiently before the device
+    /// delivers the real reply.
     private func request(reportID: UInt8, featureIndex: UInt8, funcID: UInt8,
-                         params: [UInt8], timeout: TimeInterval = 0.6) -> [UInt8]? {
+                         params: [UInt8], timeout: TimeInterval = 1.2) -> [UInt8]? {
         guard !devices.isEmpty else { return nil }
         let len = reportID == kShortReportID ? 7 : 20
         var frame = [UInt8](repeating: 0, count: len)
@@ -141,29 +150,42 @@ public final class HIDPP: @unchecked Sendable {
         frame[3] = (funcID << 4) | kSwID
         for (i, p) in params.enumerated() where 4 + i < len { frame[4 + i] = p }
 
-        lock.lock(); expectedFeature = featureIndex; lastResponse = []; lock.unlock()
-        // drain any stale signal
-        while responseSem.wait(timeout: .now()) == .success {}
+        for attempt in 0..<6 {
+            lock.lock()
+            expectedFeature = featureIndex
+            expectedDeviceIndex = deviceIndex
+            lastResponse = []
+            lock.unlock()
+            // drain any stale signal
+            while responseSem.wait(timeout: .now()) == .success {}
 
-        log("-> " + frame.map { String(format: "%02X", $0) }.joined(separator: " "))
-        // Broadcast to every matched FF00 collection; only the right one answers, and
-        // handleInput() routes the reply back by feature index + swID.
-        var anySent = false
-        for dev in devices {
-            let r = frame.withUnsafeBufferPointer {
-                IOHIDDeviceSetReport(dev, kIOHIDReportTypeOutput, CFIndex(reportID), $0.baseAddress!, len)
+            log("-> " + frame.map { String(format: "%02X", $0) }.joined(separator: " "))
+            // Broadcast to every matched FF00 collection; only the right one answers, and
+            // handleInput() routes the reply back by device index + feature + swID.
+            var anySent = false
+            for dev in devices {
+                let r = frame.withUnsafeBufferPointer {
+                    IOHIDDeviceSetReport(dev, kIOHIDReportTypeOutput, CFIndex(reportID), $0.baseAddress!, len)
+                }
+                if r == kIOReturnSuccess { anySent = true }
             }
-            if r == kIOReturnSuccess { anySent = true }
+            guard anySent else { log("SetReport failed on all devices"); return nil }
+            guard responseSem.wait(timeout: .now() + timeout) == .success else { return nil }
+            lock.lock(); let resp = lastResponse; lock.unlock()
+
+            // Error reply: feature index byte == 0x8F (ERROR).
+            if resp.count >= 6 && resp[2] == 0x8F {
+                let code = resp[5]
+                log(String(format: "  HID++ error: idx=0x%02X func/sw=0x%02X code=0x%02X", resp[3], resp[4], code))
+                if code == 0x08 {  // BUSY: wait briefly and resend
+                    usleep(120_000)
+                    continue
+                }
+                return nil
+            }
+            return resp
         }
-        guard anySent else { log("SetReport failed on all devices"); return nil }
-        guard responseSem.wait(timeout: .now() + timeout) == .success else { return nil }
-        lock.lock(); let resp = lastResponse; lock.unlock()
-        // An error reply uses feature index 0x8F (ERROR) — treat as no answer.
-        if resp.count >= 6 && resp[2] == 0x8F {
-            log(String(format: "  HID++ error: idx=0x%02X func/sw=0x%02X code=0x%02X", resp[3], resp[4], resp[5]))
-            return nil
-        }
-        return resp
+        return nil
     }
 
     /// Asks the Root feature (index 0x00, function 0x00) for the index of a feature ID.
