@@ -1,5 +1,7 @@
 # Squeak
 
+<img src="docs/icon.png" width="96" align="right" alt="Squeak icon">
+
 Menu-bar battery readout for a Logitech G502 X Lightspeed on macOS, without G Hub.
 Talks HID++ to the Lightspeed receiver directly via IOKit. No G Hub, no Options+, no daemon.
 
