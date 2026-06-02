@@ -27,7 +27,10 @@ struct ContentView: View {
     var body: some View {
         Group {
             if let p = monitor.percent {
-                Text("G502 X: \(p)%\(monitor.charging ? " (charging)" : "")")
+                Text("G502 X: \(p)%")
+                if !monitor.stateText.isEmpty {
+                    Text(monitor.stateText)
+                }
             } else {
                 Text("G502 X: no reading")
             }

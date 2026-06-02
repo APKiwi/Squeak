@@ -5,7 +5,7 @@ import HIDPPKit
 @MainActor
 final class BatteryMonitor: ObservableObject {
     @Published var percent: Int?
-    @Published var charging = false
+    @Published var state: ChargeState = .unknown
     @Published var status = "Starting…"
     @Published var lastUpdated: Date?
 
@@ -31,17 +31,27 @@ final class BatteryMonitor: ObservableObject {
 
     var menuTitle: String {
         guard let percent else { return "—" }
-        return "\(percent)%"
+        // A bolt next to the number makes "on power" unmistakable in the bar.
+        return state.isOnPower ? "\(percent)% ⚡" : "\(percent)%"
     }
 
     var symbol: String {
-        if charging { return "battery.100.bolt" }
+        if state.isOnPower { return "battery.100.bolt" }
         switch percent ?? 0 {
         case 0:        return "battery.0"
         case 1..<25:   return "battery.25"
         case 25..<50:  return "battery.50"
         case 50..<75:  return "battery.75"
         default:       return "battery.100"
+        }
+    }
+
+    var stateText: String {
+        switch state {
+        case .discharging: return "On battery"
+        case .charging:    return "Charging"
+        case .full:        return "Full (plugged in)"
+        case .unknown:     return ""
         }
     }
 
@@ -54,11 +64,11 @@ final class BatteryMonitor: ObservableObject {
                 switch result {
                 case .success(let r):
                     self.percent = r.percent
-                    self.charging = r.charging
+                    self.state = r.state
                     self.status = r.detail
                     self.lastUpdated = Date()
                     if ProcessInfo.processInfo.environment["G502_DEBUG"] != nil {
-                        FileHandle.standardError.write(Data("APP READING: \(r.percent)%\(r.charging ? " charging" : "")\n".utf8))
+                        FileHandle.standardError.write(Data("APP READING: \(r.percent)% \(r.state)\n".utf8))
                     }
                 case .failure(let e):
                     self.status = e.message

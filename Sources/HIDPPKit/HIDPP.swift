@@ -32,9 +32,18 @@ private let kSwID: UInt8 = 0x08  // arbitrary 1..15 tag so we can tell our repli
 private let kFeatureUnifiedBattery: UInt16 = 0x1004  // newer devices (G502 X likely)
 private let kFeatureBatteryStatus: UInt16  = 0x1000  // older devices
 
+public enum ChargeState {
+    case discharging   // on battery
+    case charging      // cable in, actively charging
+    case full          // cable in, charge complete
+    case unknown
+
+    public var isOnPower: Bool { self == .charging || self == .full }
+}
+
 public struct BatteryReading {
     public let percent: Int
-    public let charging: Bool
+    public let state: ChargeState
     public let detail: String
 }
 
@@ -223,14 +232,20 @@ public final class HIDPP: @unchecked Sendable {
 
     // UNIFIED_BATTERY 0x1004, get_status = function 0x01
     //   reply params: [0]=state-of-charge %, [1]=level enum, [2]=charging status
+    //   charging status enum: 0=discharging, 1=charging, 2=charging(slow), 3=charge complete
     private func readUnifiedBattery(featureIndex bi: UInt8) -> BatteryReading? {
         guard let resp = request(reportID: kShortReportID, featureIndex: bi, funcID: 0x01, params: []),
               resp.count >= 7 else { return nil }
         let pct = Int(resp[4])
-        let chargingStatus = resp[6]
-        let charging = chargingStatus == 1 || chargingStatus == 3  // 1=charging, 3=charging-slow on some fw
+        let state: ChargeState
+        switch resp[6] {
+        case 0:    state = .discharging
+        case 1, 2: state = .charging
+        case 3:    state = .full
+        default:   state = .unknown
+        }
         guard pct > 0 && pct <= 100 else { return nil }
-        return BatteryReading(percent: pct, charging: charging,
+        return BatteryReading(percent: pct, state: state,
                               detail: "unified-battery idx=\(bi) raw=\(hex(resp))")
     }
 
@@ -240,10 +255,16 @@ public final class HIDPP: @unchecked Sendable {
         guard let resp = request(reportID: kShortReportID, featureIndex: bi, funcID: 0x00, params: []),
               resp.count >= 7 else { return nil }
         let pct = Int(resp[4])
-        let status = resp[6]
-        let charging = status >= 1 && status <= 3
+        // 0x1000 status: 0=discharging, 1=recharging, 2=charge-complete, 3=charging-error…
+        let state: ChargeState
+        switch resp[6] {
+        case 0:  state = .discharging
+        case 1:  state = .charging
+        case 2:  state = .full
+        default: state = .unknown
+        }
         guard pct > 0 && pct <= 100 else { return nil }
-        return BatteryReading(percent: pct, charging: charging,
+        return BatteryReading(percent: pct, state: state,
                               detail: "battery-status idx=\(bi) raw=\(hex(resp))")
     }
 

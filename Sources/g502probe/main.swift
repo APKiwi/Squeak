@@ -15,7 +15,7 @@ let timer = Timer(timeInterval: 1.0, repeats: true) { t in
     attempts += 1
     switch hid.readBattery() {
     case .success(let r):
-        print("BATTERY: \(r.percent)%\(r.charging ? " (charging)" : "")  [\(r.detail)]")
+        print("BATTERY: \(r.percent)% \(r.state)  [\(r.detail)]")
         t.invalidate()
         CFRunLoopStop(CFRunLoopGetMain())
     case .failure(let e):
