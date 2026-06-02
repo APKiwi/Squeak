@@ -13,7 +13,9 @@ Shows `NN%` in the menu bar with a battery glyph that tracks the level, a bolt w
 
     Scripts/install.sh
 
-Builds a release `.app`, copies it to `~/Applications`, and registers a login agent so it runs at startup and lives in the menu bar. Re-run to update. Remove with `Scripts/uninstall.sh`.
+Builds a release `.app`, copies it to `~/Applications`, and launches it. Re-run to update. Remove with `Scripts/uninstall.sh`.
+
+Launch-at-login is off by default. Turn it on (and choose whether the percentage shows in the menu bar, plus how often the battery is polled) from the app's Settings window: click the menu-bar item and choose "Settings...".
 
 The app is ad-hoc signed, so if Gatekeeper objects, right-click the app in `~/Applications` and choose Open once. No special permissions needed (reading battery over HID++ isn't Input Monitoring).
 
