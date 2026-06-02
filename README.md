@@ -27,15 +27,16 @@ Polls once a second up to 15 times, prints `BATTERY: NN%` on success, otherwise 
 
 ## Status
 
-Transport works end to end on macOS 26: it opens both Logitech receivers, sends HID++ short reports, and parses replies (normal and `0x8F` error frames). What's not yet confirmed is reading an actual percentage, because every test so far hit the mouse while it was asleep/disconnected - the receiver answers the root-feature query with `unknown device` (0x08) / `connection error` (0x09) on every slot.
+Working on macOS 26. Reads the percentage over the Lightspeed receiver and shows it in the menu bar. Verified at 11% against an awake G502 X Lightspeed.
 
-Next step: run `g502probe` while actively moving the mouse so it's awake and connected, and see which device index + battery feature (`0x1004` UNIFIED_BATTERY or `0x1000` BATTERY_STATUS) answers. Then lock the read path to that.
+The mouse must be awake to answer (a sleeping mouse returns `ERR_BUSY` and the read fails); the app retries a few times on launch then polls every two minutes, so it picks up a reading once you touch the mouse.
 
 ### HID++ notes
 
 - Receiver enumerates as VID `0x046D`, usage page `0xFF00`. Two receivers were present in testing (`0xC547`, `0xC53A`); the app sets up all matching collections and broadcasts each request, routing the reply by feature index + swID.
 - Frame: `[reportID, deviceIndex, featureIndex, funcID<<4|swID, params...]`. Short report `0x10` (7 bytes), long `0x11` (20 bytes). The IOKit input buffer already includes the report ID as byte 0.
-- Wireless device sits at slot `0x01` on the receiver; `0xFF` addresses the receiver itself.
+- Wireless device sits at slot `0x01` on the receiver; `0xFF` addresses the receiver itself. The G502 X Lightspeed exposes UNIFIED_BATTERY (`0x1004`) at feature index 6; `get_status` (func 1) returns state-of-charge % in the first param byte.
+- Each request draws two replies: an immediate short `ERR_BUSY` (0x08) ack, then the real answer as a separate long report. Ignore the BUSY and wait for the real one.
 - Do NOT mix the manager dispatch queue with per-device input callbacks: registering an input callback inside the manager's activate-applier traps (`EXC_BREAKPOINT`). Enumerate with `IOHIDManagerCopyDevices`, then give each device its own queue + activate.
 
 ## License
