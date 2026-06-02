@@ -11,21 +11,38 @@ final class BatteryMonitor: ObservableObject {
     @Published var lastUpdated: Date?
 
     private let hid = HIDPP()
+    private let settings: AppSettings
     private var timer: Timer?
+    private var cancellables = Set<AnyCancellable>()
 
-    init() {
+    init(settings: AppSettings) {
+        self.settings = settings
+
         // Set SQUEAK_DEBUG=1 to dump HID++ traffic + readings to stderr.
         if ProcessInfo.processInfo.environment["SQUEAK_DEBUG"] != nil { hid.verbose = true }
         hid.start()
         // The receiver can take a moment to enumerate, and the mouse may be asleep.
-        // Retry quickly until we get a first reading, then settle into a slow poll.
+        // Retry quickly until we get a first reading, then settle into the slow poll.
         for delay in [1.5, 3.5, 6.0, 9.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, self.percent == nil else { return }
                 self.refresh()
             }
         }
-        timer = Timer.scheduledTimer(withTimeInterval: 120, repeats: true) { [weak self] _ in
+
+        scheduleTimer(minutes: settings.pollIntervalMinutes)
+        // Reschedule whenever the user changes the interval in Settings. dropFirst skips
+        // the value we just scheduled with above.
+        settings.$pollIntervalMinutes
+            .dropFirst()
+            .sink { [weak self] minutes in self?.scheduleTimer(minutes: minutes) }
+            .store(in: &cancellables)
+    }
+
+    private func scheduleTimer(minutes: Int) {
+        timer?.invalidate()
+        let interval = TimeInterval(max(1, minutes) * 60)
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
     }

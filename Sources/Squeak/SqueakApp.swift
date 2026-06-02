@@ -3,9 +3,15 @@ import AppKit
 
 @main
 struct SqueakApp: App {
-    @StateObject private var monitor = BatteryMonitor()
+    @StateObject private var settings: AppSettings
+    @StateObject private var monitor: BatteryMonitor
 
     init() {
+        // Create settings first so the monitor can read and observe the poll interval.
+        let settings = AppSettings()
+        _settings = StateObject(wrappedValue: settings)
+        _monitor = StateObject(wrappedValue: BatteryMonitor(settings: settings))
+
         // Menu-bar-only: no Dock icon, no main window.
         NSApplication.shared.setActivationPolicy(.accessory)
     }
@@ -15,13 +21,19 @@ struct SqueakApp: App {
             ContentView(monitor: monitor)
         } label: {
             // Composited battery+bolt image (bolt overlay only exists for the full SF
-            // Symbol, so we draw our own) plus the percentage text.
+            // Symbol, so we draw our own). The percentage text is optional per settings.
             HStack(spacing: 3) {
                 Image(nsImage: monitor.barImage)
-                Text(monitor.menuTitle)
+                if settings.showPercentInMenuBar {
+                    Text(monitor.menuTitle)
+                }
             }
         }
         .menuBarExtraStyle(.menu)
+
+        Settings {
+            SettingsView(settings: settings)
+        }
     }
 }
 
@@ -52,6 +64,10 @@ struct ContentView: View {
 
             Divider()
             Button("Refresh now") { monitor.refresh() }
+            SettingsLink {
+                Text("Settings…")
+            }
+            .keyboardShortcut(",")
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .keyboardShortcut("q")
         }
