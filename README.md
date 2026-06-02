@@ -5,6 +5,8 @@ Talks HID++ to the Lightspeed receiver directly via IOKit. No G Hub, no Options+
 
 Shows `NN%` in the menu bar with a battery glyph that tracks the level, a bolt when charging, and an "On battery / Charging / Full" line in the dropdown.
 
+![Squeak in the menu bar](docs/menu-bar.png)
+
 ## Install
 
     Scripts/install.sh
