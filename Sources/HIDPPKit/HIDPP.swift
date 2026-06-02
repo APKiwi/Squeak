@@ -52,6 +52,8 @@ public struct BatteryError: Error { public let message: String }
 public final class HIDPP: @unchecked Sendable {
     private var manager: IOHIDManager?
     private var devices: [IOHIDDevice] = []
+    private var pids: [Int] = []                 // parallel to devices
+    private var targetDevice: IOHIDDevice?       // when set, requests go only here
     private let queue = DispatchQueue(label: "kiwi.ap.g502.hidpp")
     private let inputBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 64)
 
@@ -93,7 +95,8 @@ public final class HIDPP: @unchecked Sendable {
 
     private func setUpDevice(_ dev: IOHIDDevice) {
         let product = IOHIDDeviceGetProperty(dev, kIOHIDProductKey as CFString) as? String ?? "?"
-        let pid = (IOHIDDeviceGetProperty(dev, kIOHIDProductIDKey as CFString) as? Int).map { String(format: "0x%04X", $0) } ?? "?"
+        let pidInt = IOHIDDeviceGetProperty(dev, kIOHIDProductIDKey as CFString) as? Int ?? 0
+        let pid = String(format: "0x%04X", pidInt)
 
         let openResult = IOHIDDeviceOpen(dev, IOOptionBits(kIOHIDOptionsTypeNone))
         guard openResult == kIOReturnSuccess else {
@@ -115,6 +118,7 @@ public final class HIDPP: @unchecked Sendable {
         IOHIDDeviceActivate(dev)
 
         devices.append(dev)
+        pids.append(pidInt)
         log("ready: \(product) pid=\(pid)")
     }
 
@@ -172,7 +176,8 @@ public final class HIDPP: @unchecked Sendable {
             // Broadcast to every matched FF00 collection; only the right one answers, and
             // handleInput() routes the reply back by device index + feature + swID.
             var anySent = false
-            for dev in devices {
+            let targets = targetDevice.map { [$0] } ?? devices
+            for dev in targets {
                 let r = frame.withUnsafeBufferPointer {
                     IOHIDDeviceSetReport(dev, kIOHIDReportTypeOutput, CFIndex(reportID), $0.baseAddress!, len)
                 }
@@ -228,6 +233,43 @@ public final class HIDPP: @unchecked Sendable {
             }
         }
         return .failure(BatteryError(message: "no battery feature answered (try waking the mouse)"))
+    }
+
+    /// Probes each receiver separately and reports which one currently hosts the mouse,
+    /// at which slot, plus its battery % and charge state. Used to tell whether the mouse
+    /// is connected through the Powerplay mat or a different receiver.
+    public func diagnose() -> String {
+        guard !devices.isEmpty else { return "No Logitech receivers found on USB." }
+        var lines: [String] = []
+        for (i, dev) in devices.enumerated() {
+            let pid = pids[i]
+            let label = receiverLabel(pid)
+            targetDevice = dev
+            defer { targetDevice = nil }
+
+            var found = false
+            for slot in [0x01, 0x02, 0x03] as [UInt8] {
+                deviceIndex = slot
+                guard let bi = featureIndex(of: kFeatureUnifiedBattery),
+                      let r = readUnifiedBattery(featureIndex: bi) else { continue }
+                found = true
+                lines.append(String(format: "receiver 0x%04X (%@): MOUSE on slot %d -> %d%%, %@",
+                                    pid, label, Int(slot), r.percent, "\(r.state)"))
+            }
+            if !found {
+                lines.append(String(format: "receiver 0x%04X (%@): no awake mouse on slots 1-3", pid, label))
+            }
+        }
+        targetDevice = nil
+        return lines.joined(separator: "\n")
+    }
+
+    private func receiverLabel(_ pid: Int) -> String {
+        switch pid {
+        case 0xC53A: return "Powerplay mat"
+        case 0xC547: return "Lightspeed dongle"
+        default:     return "unknown receiver"
+        }
     }
 
     // UNIFIED_BATTERY 0x1004, get_status = function 0x01

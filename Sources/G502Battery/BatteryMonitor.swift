@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import AppKit
 import HIDPPKit
 
 @MainActor
@@ -31,15 +32,10 @@ final class BatteryMonitor: ObservableObject {
 
     var menuTitle: String {
         guard let percent else { return "—" }
-        // A bolt next to the number makes "on power" unmistakable in the bar.
-        return state.isOnPower ? "\(percent)% ⚡" : "\(percent)%"
+        return "\(percent)%"
     }
 
-    var symbol: String {
-        // No bolt-overlay symbol exists for partial levels, so the icon always reflects
-        // the actual charge level; the "⚡" in menuTitle signals charging. The full+bolt
-        // icon is reserved for a complete charge on the cable.
-        if state == .full { return "battery.100.bolt" }
+    private var levelSymbol: String {
         switch percent ?? 0 {
         case 0:        return "battery.0"
         case 1..<25:   return "battery.25"
@@ -47,6 +43,36 @@ final class BatteryMonitor: ObservableObject {
         case 50..<75:  return "battery.75"
         default:       return "battery.100"
         }
+    }
+
+    /// Menu-bar icon: the level-appropriate battery, with a bolt composited on top when
+    /// on power. SF Symbols has no partial-level bolt symbol, so we draw our own overlay
+    /// and mark it a template image so the menu bar tints it for light/dark automatically.
+    var barImage: NSImage {
+        let cfg = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+        let battery = NSImage(systemSymbolName: levelSymbol, accessibilityDescription: nil)?
+            .withSymbolConfiguration(cfg) ?? NSImage()
+
+        guard state.isOnPower else {
+            battery.isTemplate = true
+            return battery
+        }
+
+        let boltCfg = NSImage.SymbolConfiguration(pointSize: 9, weight: .bold)
+        let bolt = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(boltCfg) ?? NSImage()
+
+        let size = battery.size
+        let composed = NSImage(size: size)
+        composed.lockFocus()
+        battery.draw(in: NSRect(origin: .zero, size: size))
+        let b = bolt.size
+        bolt.draw(in: NSRect(x: (size.width - b.width) / 2,
+                             y: (size.height - b.height) / 2,
+                             width: b.width, height: b.height))
+        composed.unlockFocus()
+        composed.isTemplate = true
+        return composed
     }
 
     var stateText: String {

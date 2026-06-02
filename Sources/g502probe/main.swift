@@ -5,8 +5,21 @@ import HIDPPKit
 // No SwiftUI, no menu bar — just exercise the protocol and print what comes back.
 
 let hid = HIDPP()
-hid.verbose = true
+hid.verbose = CommandLine.arguments.contains("-v")
 hid.start()
+
+// `g502probe diag` reports which receiver currently hosts the mouse (Powerplay vs dongle).
+if CommandLine.arguments.contains("diag") {
+    // give the receivers a beat to enumerate
+    nonisolated(unsafe) var done = false
+    DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
+        print(hid.diagnose())
+        done = true
+        CFRunLoopStop(CFRunLoopGetMain())
+    }
+    CFRunLoopRun()
+    exit(0)
+}
 
 FileHandle.standardError.write(Data("probe: started, polling…\n".utf8))
 

@@ -14,8 +14,12 @@ struct G502BatteryApp: App {
         MenuBarExtra {
             ContentView(monitor: monitor)
         } label: {
-            // SwiftUI renders the SF Symbol + text in the menu bar.
-            Label(monitor.menuTitle, systemImage: monitor.symbol)
+            // Composited battery+bolt image (bolt overlay only exists for the full SF
+            // Symbol, so we draw our own) plus the percentage text.
+            HStack(spacing: 3) {
+                Image(nsImage: monitor.barImage)
+                Text(monitor.menuTitle)
+            }
         }
         .menuBarExtraStyle(.menu)
     }
