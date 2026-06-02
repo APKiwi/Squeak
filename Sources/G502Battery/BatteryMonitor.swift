@@ -36,7 +36,10 @@ final class BatteryMonitor: ObservableObject {
     }
 
     var symbol: String {
-        if state.isOnPower { return "battery.100.bolt" }
+        // No bolt-overlay symbol exists for partial levels, so the icon always reflects
+        // the actual charge level; the "⚡" in menuTitle signals charging. The full+bolt
+        // icon is reserved for a complete charge on the cable.
+        if state == .full { return "battery.100.bolt" }
         switch percent ?? 0 {
         case 0:        return "battery.0"
         case 1..<25:   return "battery.25"
