@@ -11,7 +11,7 @@ Shows `NN%` in the menu bar with a battery glyph that tracks the level, a bolt w
 
 Builds a release `.app`, copies it to `~/Applications`, and registers a login agent so it runs at startup and lives in the menu bar. Re-run to update. Remove with `Scripts/uninstall.sh`.
 
-First launch may prompt for Input Monitoring (allow it). The app is ad-hoc signed, so if Gatekeeper objects, right-click the app in `~/Applications` and choose Open once.
+The app is ad-hoc signed, so if Gatekeeper objects, right-click the app in `~/Applications` and choose Open once. No special permissions needed (reading battery over HID++ isn't Input Monitoring).
 
 ## Layout
 

@@ -43,8 +43,12 @@ struct ContentView: View {
                 Text("Updated \(updated.formatted(date: .omitted, time: .standard))")
             }
 
-            Divider()
-            Text(monitor.status).font(.caption).foregroundStyle(.secondary)
+            // Only surface a status line when there's something to say (errors / "Reading…"),
+            // not the raw HID++ bytes.
+            if !monitor.status.isEmpty {
+                Divider()
+                Text(monitor.status).font(.caption).foregroundStyle(.secondary)
+            }
 
             Divider()
             Button("Refresh now") { monitor.refresh() }

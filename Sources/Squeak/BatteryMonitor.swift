@@ -94,10 +94,10 @@ final class BatteryMonitor: ObservableObject {
                 case .success(let r):
                     self.percent = r.percent
                     self.state = r.state
-                    self.status = r.detail
+                    self.status = ""   // raw HID++ detail only goes to SQUEAK_DEBUG, not the menu
                     self.lastUpdated = Date()
                     if ProcessInfo.processInfo.environment["SQUEAK_DEBUG"] != nil {
-                        FileHandle.standardError.write(Data("APP READING: \(r.percent)% \(r.state)\n".utf8))
+                        FileHandle.standardError.write(Data("APP READING: \(r.percent)% \(r.state) [\(r.detail)]\n".utf8))
                     }
                 case .failure(let e):
                     self.status = e.message

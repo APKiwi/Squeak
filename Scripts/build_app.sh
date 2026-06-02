@@ -11,7 +11,7 @@ mkdir -p "$APP/Contents/MacOS"
 cp ".build/release/Squeak" "$APP/Contents/MacOS/Squeak"
 cp "Info.plist" "$APP/Contents/Info.plist"
 
-# Ad-hoc sign so macOS will run it and remember any Input Monitoring grant.
+# Ad-hoc sign so macOS will run it with a stable identity (no Gatekeeper nags after first open).
 codesign --force --sign - "$APP" >/dev/null
 
 echo "Built $APP"
