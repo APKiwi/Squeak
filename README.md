@@ -2,10 +2,10 @@
 
 <img src="docs/icon.png" width="96" align="right" alt="Squeak icon">
 
-Menu-bar battery readout for a Logitech G502 X Lightspeed on macOS, without G Hub.
-Talks HID++ to the Lightspeed receiver directly via IOKit. No G Hub, no Options+, no daemon.
+Menu-bar battery readout for Logitech wireless devices on macOS, without G Hub.
+Talks HID++ to Logitech receivers directly via IOKit. No G Hub, no Options+, no daemon.
 
-Shows `NN%` in the menu bar with a battery glyph that tracks the level, a bolt when charging, and an "On battery / Charging / Full" line in the dropdown.
+Lists every Logitech device reachable over a receiver, each with its battery `%` and charge state. Click one in the dropdown to favourite it as the menu-bar primary: its level shows as the icon (with a bolt when charging), and stays as a dimmed last-known reading while it's asleep or disconnected.
 
 ![Squeak in the menu bar](docs/menu-bar.png)
 
@@ -35,12 +35,19 @@ The app is ad-hoc signed, so if Gatekeeper objects, right-click the app in `~/Ap
     ./.build/debug/squeakprobe          # poll battery, print BATTERY: NN% <state>
     ./.build/debug/squeakprobe -v       # same, with full HID++ frame dump
     ./.build/debug/squeakprobe diag     # which receiver hosts the mouse (Powerplay vs dongle), slot, %, charge state
+    ./.build/debug/squeakprobe list     # every Logitech battery device: name, %, state, transport, stable id
 
 The app dumps the same traffic if launched with `SQUEAK_DEBUG=1`.
 
 ## Notes
 
 The mouse must be awake to answer (a sleeping mouse returns `ERR_BUSY` and the read fails); the app retries a few times on launch then polls every two minutes, so it picks up a reading once you touch the mouse. Verified on macOS 26 against a G502 X Lightspeed, including charge/discharge state.
+
+### Devices and the favourite
+
+Each poll scans every tracked receiver across pairing slots `0x01`-`0x03` and the receiver itself (`0xFF`), reading battery plus the device name (feature `0x0005`) and a stable unit id (feature `0x0003`) so a favourite survives sleep/reconnect. The dropdown lists what it finds; clicking a row stores its id as the favourite, and the menu-bar icon follows that device. An offline favourite keeps its last-known reading, drawn dim.
+
+Logitech devices connected over **Bluetooth** (e.g. an MX Master 3S on BLE) are not supported. macOS exposes only their standard mouse HID interface over BLE, with no HID++ vendor collection (`0xFF00`/`0xFF43`) and no battery property, so there's nothing to read. Pair such a device to a Bolt/Unifying receiver and it shows up through the normal path.
 
 ### HID++
 

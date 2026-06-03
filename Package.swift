@@ -20,5 +20,10 @@ let package = Package(
             dependencies: ["HIDPPKit"],
             path: "Sources/squeakprobe"
         ),
+        .testTarget(
+            name: "HIDPPKitTests",
+            dependencies: ["HIDPPKit"],
+            path: "Tests/HIDPPKitTests"
+        ),
     ]
 )
