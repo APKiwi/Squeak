@@ -401,6 +401,28 @@ public final class HIDPP: @unchecked Sendable {
     /// unit id (feature 0x0003), falling back to "P:<pid>:<slot>". Deduped by id.
     public func scanAll() -> [DeviceReading] {
         if devices.isEmpty { rescan() }
+        let out = scanAllOnce()
+        if !out.isEmpty { return out }
+
+        // Nothing answered. If not a single SetReport got through this sweep, our refs are stale:
+        // sleep/wake or USB re-enumeration replaced the receiver while `devices` stayed non-empty,
+        // so the empty-list rescan above couldn't fire. Reconcile against a fresh enumeration and
+        // sweep once more — the same recovery readBattery() has, which this multi-device path was
+        // missing (the menu-bar app polls scanAll(), so without this it stays stuck on an empty
+        // list after the machine sleeps). A merely-asleep mouse still accepts SetReport, so
+        // anySendSucceededThisCycle stays true and we don't needlessly churn the device refs.
+        if !anySendSucceededThisCycle, reconcileStaleDevices() {
+            return scanAllOnce()
+        }
+        return out
+    }
+
+    /// One full enumeration sweep over the tracked devices and pairing slots. Clears
+    /// `anySendSucceededThisCycle` first and lets `request()` set it, so `scanAll()` can tell a
+    /// dead transport (no SetReport got through → reconcile) from an asleep mouse (sends fine, no
+    /// reply → leave refs alone). Mirrors readBatteryOnce() for the multi-device path.
+    private func scanAllOnce() -> [DeviceReading] {
+        anySendSucceededThisCycle = false
         var out: [DeviceReading] = []
         var seen = Set<String>()
 

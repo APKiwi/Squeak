@@ -47,6 +47,29 @@ if CommandLine.arguments.contains("staledev") {
     }
 }
 
+// `squeakprobe staledev-scan` is the multi-device twin of `staledev`: it stages the same
+// stale-ref state, then drives `scanAll()` (the path the menu-bar app actually polls) instead
+// of `readBattery()`. Proves scanAll() reconciles dead refs and recovers the device list, the
+// way the app must after sleep/wake. Handled before start() so nothing pre-populates devices.
+if CommandLine.arguments.contains("staledev-scan") {
+    hid.armManager()
+    guard hid.injectStaleDeviceForTesting() else {
+        FileHandle.standardError.write(Data("staledev-scan: no spare HID device to borrow; cannot stage the scenario\n".utf8))
+        exit(2)
+    }
+    FileHandle.standardError.write(Data("staledev-scan: injected stale device, deviceCount=\(hid.deviceCount) (every SetReport will fail)\n".utf8))
+    let devices = hid.scanAll()
+    if devices.isEmpty {
+        FileHandle.standardError.write(Data("STILL STUCK: scanAll() found no devices\n".utf8))
+        exit(1)
+    }
+    for d in devices {
+        let pct = d.percent.map { "\($0)%" } ?? "—"
+        print("RECOVERED FROM STALE: \(d.name)  \(pct)  \(d.state)  [\(d.transport.rawValue)]  id=\(d.id)")
+    }
+    exit(0)
+}
+
 hid.start()
 
 // `squeakprobe list` prints every Logitech battery device scanAll() finds — name, %, state,
