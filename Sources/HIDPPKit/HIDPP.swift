@@ -312,15 +312,21 @@ public final class HIDPP: @unchecked Sendable {
         // Lightspeed pairs at slot 0x01; 0xFF is the receiver itself.
         for idx in [0x01, 0x02, 0x03, 0xFF] as [UInt8] {
             deviceIndex = idx
+            if let r = batteryForCurrentSlot() { return r }
+        }
+        return nil
+    }
 
-            if let bi = featureIndex(of: kFeatureUnifiedBattery),
-               let r = readUnifiedBattery(featureIndex: bi) {
-                return r
-            }
-            if let bi = featureIndex(of: kFeatureBatteryStatus),
-               let r = readBatteryStatus(featureIndex: bi) {
-                return r
-            }
+    /// Battery for whatever `deviceIndex`/`targetDevice` is currently set, trying the unified
+    /// feature then the older one. No slot iteration — the caller controls the slot.
+    private func batteryForCurrentSlot() -> BatteryReading? {
+        if let bi = featureIndex(of: kFeatureUnifiedBattery),
+           let r = readUnifiedBattery(featureIndex: bi) {
+            return r
+        }
+        if let bi = featureIndex(of: kFeatureBatteryStatus),
+           let r = readBatteryStatus(featureIndex: bi) {
+            return r
         }
         return nil
     }
@@ -350,6 +356,78 @@ public final class HIDPP: @unchecked Sendable {
         for dev in fresh where !devices.contains(dev) { setUpDevice(dev); changed = true }
         log("reconcile: now tracking \(devices.count) HID++ device(s) after dropping stale refs")
         return changed
+    }
+
+    // DEVICE_NAME 0x0005: func 0x00 getCount -> [0]=length; func 0x01 getName(charIndex) ->
+    // ASCII chunk in params. Reply may be a long (0x11) report, so we append whatever params
+    // come back until we've collected `length` chars.
+    private func deviceName(featureIndex bi: UInt8) -> String? {
+        guard let c = request(reportID: kShortReportID, featureIndex: bi, funcID: 0x00, params: []),
+              c.count >= 5 else { return nil }
+        let length = Int(c[4])
+        guard length > 0 && length <= 64 else { return nil }
+        var chars: [UInt8] = []
+        var guardCount = 0
+        while chars.count < length && guardCount < 16 {
+            guardCount += 1
+            guard let r = request(reportID: kShortReportID, featureIndex: bi, funcID: 0x01,
+                                  params: [UInt8(chars.count)]), r.count > 4 else { break }
+            let chunk = Array(r[4...])
+            if chunk.allSatisfy({ $0 == 0 }) { break }
+            chars.append(contentsOf: chunk)
+        }
+        let bytes = Array(chars.prefix(length)).filter { $0 != 0 }
+        let name = String(bytes: bytes, encoding: .ascii)?.trimmingCharacters(in: .whitespaces)
+        return (name?.isEmpty == false) ? name : nil
+    }
+
+    // DEVICE_INFO 0x0003 func 0x00: params [0]=entityCount, [1..4]=unitId (stable per device).
+    // In the frame that's resp[4]=entityCount, resp[5..8]=unitId.
+    private func unitID(featureIndex bi: UInt8) -> String? {
+        guard let r = request(reportID: kShortReportID, featureIndex: bi, funcID: 0x00, params: []),
+              r.count >= 9 else { return nil }
+        let unit = r[5...8]
+        guard unit.contains(where: { $0 != 0 }) else { return nil }
+        return unit.map { String(format: "%02X", $0) }.joined()
+    }
+
+    private func transport(of dev: IOHIDDevice) -> Transport {
+        let t = (IOHIDDeviceGetProperty(dev, kIOHIDTransportKey as CFString) as? String) ?? ""
+        return t.lowercased().contains("bluetooth") ? .bluetooth : .receiver
+    }
+
+    /// Enumerate every Logitech battery device across all tracked FF00 transports. For each
+    /// device we get the battery, a friendly name (feature 0x0005), and a stable id from the
+    /// unit id (feature 0x0003), falling back to "P:<pid>:<slot>". Deduped by id.
+    public func scanAll() -> [DeviceReading] {
+        if devices.isEmpty { rescan() }
+        var out: [DeviceReading] = []
+        var seen = Set<String>()
+
+        for (i, dev) in devices.enumerated() {
+            let pid = pids[i]
+            let trans = transport(of: dev)
+            targetDevice = dev
+            defer { targetDevice = nil }
+
+            for slot in [0x01, 0x02, 0x03, 0xFF] as [UInt8] {
+                deviceIndex = slot
+                guard let battery = batteryForCurrentSlot() else { continue }
+
+                let name = featureIndex(of: 0x0005).flatMap { deviceName(featureIndex: $0) }
+                    ?? receiverLabel(pid)
+                let id = featureIndex(of: 0x0003).flatMap { unitID(featureIndex: $0) }
+                    .map { "U:\($0)" }
+                    ?? String(format: "P:%04X:%02X", pid, slot)
+
+                if seen.contains(id) { continue }
+                seen.insert(id)
+                out.append(DeviceReading(id: id, name: name, percent: battery.percent,
+                                         state: battery.state, transport: trans))
+            }
+        }
+        targetDevice = nil
+        return out
     }
 
     /// Probes each receiver separately and reports which one currently hosts the mouse,
