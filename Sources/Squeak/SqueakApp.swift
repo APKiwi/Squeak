@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import HIDPPKit
 
 @main
 struct SqueakApp: App {
@@ -18,7 +19,7 @@ struct SqueakApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            ContentView(monitor: monitor)
+            ContentView(monitor: monitor, settings: settings)
         } label: {
             // Composited battery+bolt image (bolt overlay only exists for the full SF
             // Symbol, so we draw our own). The percentage text is optional per settings.
@@ -39,16 +40,20 @@ struct SqueakApp: App {
 
 struct ContentView: View {
     @ObservedObject var monitor: BatteryMonitor
+    @ObservedObject var settings: AppSettings
 
     var body: some View {
         Group {
-            if let p = monitor.percent {
-                Text("G502 X: \(p)%")
-                if !monitor.stateText.isEmpty {
-                    Text(monitor.stateText)
-                }
+            if monitor.devices.isEmpty {
+                Text("No Logitech devices")
             } else {
-                Text("G502 X: no reading")
+                ForEach(monitor.devices) { device in
+                    Button {
+                        settings.favouriteDeviceID = device.id
+                    } label: {
+                        Text(rowLabel(device))
+                    }
+                }
             }
 
             if let updated = monitor.lastUpdated {
@@ -71,5 +76,14 @@ struct ContentView: View {
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .keyboardShortcut("q")
         }
+    }
+
+    /// "✓ G502 X — 81% ⚡" for the favourite; offline devices get an "(asleep)" suffix.
+    private func rowLabel(_ d: RegisteredDevice) -> String {
+        let check = (d.id == settings.favouriteDeviceID) ? "✓ " : ""
+        let pct = d.percent.map { "\($0)%" } ?? "—"
+        let bolt = d.state.isOnPower ? " ⚡" : ""
+        let asleep = d.isOnline ? "" : " (asleep)"
+        return "\(check)\(d.name) — \(pct)\(bolt)\(asleep)"
     }
 }
