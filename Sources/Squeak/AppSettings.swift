@@ -9,6 +9,7 @@ final class AppSettings: ObservableObject {
     enum Keys {
         static let showPercentInMenuBar = "showPercentInMenuBar"
         static let pollIntervalSeconds = "pollIntervalSeconds"
+        static let favouriteDeviceID = "favouriteDeviceID"
     }
 
     static let defaultPollIntervalSeconds = 120
@@ -31,6 +32,12 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(pollIntervalSeconds, forKey: Keys.pollIntervalSeconds) }
     }
 
+    /// Stable id (from `DeviceReading.id`) of the device shown as primary in the menu bar.
+    /// `nil` = no favourite chosen yet; the monitor falls back to the first online device.
+    @Published var favouriteDeviceID: String? {
+        didSet { defaults.set(favouriteDeviceID, forKey: Keys.favouriteDeviceID) }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -48,5 +55,7 @@ final class AppSettings: ObservableObject {
         self.pollIntervalSeconds = AppSettings.pollIntervalChoices.contains(stored)
             ? stored
             : AppSettings.defaultPollIntervalSeconds
+
+        self.favouriteDeviceID = defaults.string(forKey: Keys.favouriteDeviceID)
     }
 }
