@@ -7,7 +7,7 @@
     <key>CFBundleDisplayName</key>
     <string>Squeak</string>
     <key>CFBundleIdentifier</key>
-    <string>kiwi.ap.Squeak</string>
+    <string>kiwi.ap.squeak</string>
     <key>CFBundleExecutable</key>
     <string>Squeak</string>
     <key>CFBundleIconFile</key>

@@ -3,7 +3,7 @@
 # (pre-SMAppService) install left one behind. The modern SMAppService login item is pruned
 # by macOS once the app bundle is gone.
 set -euo pipefail
-LABEL="kiwi.ap.Squeak"
+LABEL="kiwi.ap.squeak"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
 # Legacy cleanup: older installs registered a launchd agent. Harmless if absent.

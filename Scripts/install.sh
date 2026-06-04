@@ -4,7 +4,7 @@
 # longer registers a launchd agent. Re-run any time to update.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-LABEL="kiwi.ap.Squeak"
+LABEL="kiwi.ap.squeak"
 DEST="$HOME/Applications"
 
 "$HERE/Scripts/build_app.sh"
