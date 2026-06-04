@@ -12,7 +12,13 @@ cp ".build/release/Squeak" "$APP/Contents/MacOS/Squeak"
 cp "Info.plist" "$APP/Contents/Info.plist"
 [ -f AppIcon.icns ] && cp "AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
-# Ad-hoc sign so macOS will run it with a stable identity (no Gatekeeper nags after first open).
-codesign --force --sign - "$APP" >/dev/null
+# Sign with the shared self-signed identity when present (stable across rebuilds, so any
+# TCC/login grants persist), else ad-hoc. Create it once with Scripts/make_signing_cert.sh.
+SIGN_ID="AP Kiwi Local Signing"
+if security find-identity -p codesigning -v 2>/dev/null | grep -q "$SIGN_ID"; then
+    codesign --force --sign "$SIGN_ID" "$APP" >/dev/null
+else
+    codesign --force --sign - "$APP" >/dev/null
+fi
 
 echo "Built $APP"

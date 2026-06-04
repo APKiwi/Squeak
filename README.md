@@ -59,4 +59,6 @@ Logitech devices connected over **Bluetooth** (e.g. an MX Master 3S on BLE) are 
 
 ## License
 
-MIT
+GPLv3. See [LICENSE](LICENSE).
+
+Copyright (C) 2026 [APKiwi](https://github.com/APKiwi)
