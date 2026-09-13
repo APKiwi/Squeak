@@ -57,6 +57,10 @@ Logitech devices connected over **Bluetooth** (e.g. an MX Master 3S on BLE) are 
 - Each request draws two replies: an immediate short `ERR_BUSY` (0x08) ack, then the real answer as a separate long report. Ignore the BUSY and wait for the real one.
 - Do NOT mix the manager dispatch queue with per-device input callbacks: registering an input callback inside the manager's activate-applier traps (`EXC_BREAKPOINT`). Enumerate with `IOHIDManagerCopyDevices`, then give each device its own queue + activate.
 
+## Support
+
+[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/apkiwi)
+
 ## License
 
 GPLv3. See [LICENSE](LICENSE).
