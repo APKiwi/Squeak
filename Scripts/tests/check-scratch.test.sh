@@ -193,6 +193,23 @@ fresh; mkdir -p Scripts/tests; cp "$SCRIPT" Scripts/check-scratch.sh; cp "$here/
 commit scripts; run_in_repo() { set +e; sh Scripts/check-scratch.sh "$@" >"$OUTFILE" 2>&1; rc=$?; set -e; }; run_in_repo --tree
 check tree_self_exclusion_follows_script_location 0 "$rc"
 
+# Inside a git hook git exports GIT_DIR, which must not stop the check from finding its own folder.
+# The staged line names a scratch path, so it only passes while the test file stays excluded.
+fresh; mkdir -p scripts/tests; cp "$SCRIPT" scripts/check-scratch.sh; cp "$here/check-scratch.test.sh" scripts/tests/check-scratch.test.sh
+commit scripts; printf '# see docs/superpowers/plans/x.md\n' >> scripts/tests/check-scratch.test.sh; git add scripts/tests/check-scratch.test.sh
+GIT_DIR=$(git rev-parse --absolute-git-dir); export GIT_DIR
+set +e; sh scripts/check-scratch.sh >"$OUTFILE" 2>&1; rc=$?; set -e
+unset GIT_DIR
+check staged_hook_git_dir_set_passes 0 "$rc"
+
+fresh; mkdir -p scripts/tests; cp "$SCRIPT" scripts/check-scratch.sh; cp "$here/check-scratch.test.sh" scripts/tests/check-scratch.test.sh
+commit scripts; git worktree add -q "$TMPROOT/linked$case_no" -b linked; cd "$TMPROOT/linked$case_no"
+printf '# see docs/superpowers/plans/x.md\n' >> scripts/tests/check-scratch.test.sh; git add scripts/tests/check-scratch.test.sh
+GIT_DIR=$(git rev-parse --absolute-git-dir); export GIT_DIR
+set +e; sh scripts/check-scratch.sh >"$OUTFILE" 2>&1; rc=$?; set -e
+unset GIT_DIR
+check staged_linked_worktree_git_dir_set_passes 0 "$rc"
+
 echo "== usage =="
 fresh; run --nonsense
 check unknown_mode_exits_2 2 "$rc"

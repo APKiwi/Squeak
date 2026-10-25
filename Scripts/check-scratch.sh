@@ -37,6 +37,8 @@ case "$mode" in
     ;;
 esac
 
+# Where this script lives, resolved before the cd below so a relative $0 still resolves.
+self_here=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd -P) || self_here=
 top=$(git rev-parse --show-toplevel 2>/dev/null) || {
   echo "check-scratch: not inside a git work tree" >&2
   exit 2
@@ -53,7 +55,12 @@ design_cap=32768
 
 # Pathspecs R2 searches: everything, minus the check, its test and the ignore list.
 # The check and its test name scratch paths by design. Exclude them wherever this repo keeps them.
-self_dir=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && git rev-parse --show-prefix 2>/dev/null) || self_dir=scripts/
+top_physical=$(pwd -P)
+case "$self_here/" in
+  "$top_physical/") self_dir= ;;
+  "$top_physical"/*) self_dir=${self_here#"$top_physical"/}/ ;;
+  *) self_dir=scripts/ ;;
+esac
 set -- . ":(exclude)${self_dir}check-scratch.sh" ":(exclude)${self_dir}tests/check-scratch.test.sh"
 if [ -f .scratch-check-ignore ]; then
   while IFS= read -r spec || [ -n "$spec" ]; do
