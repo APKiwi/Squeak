@@ -10,7 +10,9 @@ final class BatteryMonitor: ObservableObject {
     @Published var status = "Starting…"
     @Published var lastUpdated: Date?
 
-    private var registry = DeviceRegistry()
+    // One missed scan isn't enough to call the mouse asleep; require two in a row.
+    private var registry = DeviceRegistry(missesBeforeOffline: 2)
+    private var scanning = false
     private let hid = HIDPP()
     private let settings: AppSettings
     private var timer: Timer?
@@ -125,11 +127,17 @@ final class BatteryMonitor: ObservableObject {
     }
 
     func refresh() {
+        // HIDPP keeps per-request state (slot, target device, pending reply), so two scans at
+        // once corrupt each other and a half-failed scan marks the mouse "asleep". Only ever
+        // run one; a refresh requested mid-scan is dropped (the running one is just as fresh).
+        guard !scanning else { return }
+        scanning = true
         status = "Reading…"
         let hid = self.hid
         Task.detached {
             let scan = hid.scanAll()
             await MainActor.run {
+                self.scanning = false
                 self.registry.merge(scan: scan, now: Date())
                 self.devices = self.registry.sorted
                 self.primary = self.registry.primary(favouriteID: self.settings.favouriteDeviceID)

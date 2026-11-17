@@ -36,6 +36,7 @@ The app is ad-hoc signed, so if Gatekeeper objects, right-click the app in `~/Ap
     ./.build/debug/squeakprobe -v       # same, with full HID++ frame dump
     ./.build/debug/squeakprobe diag     # which receiver hosts the mouse (Powerplay vs dongle), slot, %, charge state
     ./.build/debug/squeakprobe list     # every Logitech battery device: name, %, state, transport, stable id
+    ./.build/debug/squeakprobe scanloop # run the app's scan 20 times, printing ids, % and time per scan
 
 The app dumps the same traffic if launched with `SQUEAK_DEBUG=1`.
 
@@ -46,6 +47,11 @@ The mouse must be awake to answer (a sleeping mouse returns `ERR_BUSY` and the r
 ### Devices and the favourite
 
 Each poll scans every tracked receiver across pairing slots `0x01`-`0x03` and the receiver itself (`0xFF`), reading battery plus the device name (feature `0x0005`) and a stable unit id (feature `0x0003`) so a favourite survives sleep/reconnect. The dropdown lists what it finds; clicking a row stores its id as the favourite, and the menu-bar icon follows that device. An offline favourite keeps its last-known reading, drawn dim.
+
+- Only one scan runs at a time. `HIDPP` holds per-request state (slot, target device, pending reply), so overlapping scans corrupt each other's replies and a half-failed scan drops the mouse. A refresh asked for mid-scan (a launch retry, "Refresh now") is skipped.
+- The single-device receivers (`0xC547` dongle, `0xC53A` Powerplay mat) stop at the first device found. Every empty slot costs a full request timeout (~1.2 s), so scanning all four took ~5 s per poll; stopping early takes it to under 100 ms.
+- A device is shown asleep only after two scans in a row miss it, so one dropped reply doesn't flip a mouse in use to "(asleep)".
+- If the unit-id read times out, the scan reuses the id last learned for that receiver and slot. Falling back to `P:<pid>:<slot>` instead would list the mouse twice and leave the favourite looking asleep.
 
 Logitech devices connected over **Bluetooth** (e.g. an MX Master 3S on BLE) are not supported. macOS exposes only their standard mouse HID interface over BLE, with no HID++ vendor collection (`0xFF00`/`0xFF43`) and no battery property, so there's nothing to read. Pair such a device to a Bolt/Unifying receiver and it shows up through the normal path.
 

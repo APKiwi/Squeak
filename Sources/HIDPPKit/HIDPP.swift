@@ -93,6 +93,11 @@ public final class HIDPP: @unchecked Sendable {
     public var deviceIndex: UInt8 = 0x01
     public var verbose = false  // probe flips this on; the app leaves it quiet
 
+    /// Receiver PIDs that only ever pair one device (Lightspeed dongle, Powerplay mat).
+    static let singleDeviceReceivers: Set<Int> = [0xC547, 0xC53A]
+    /// Last good unit-id per "receiverPID:slot", reused when a lookup times out.
+    private var knownIDs: [String: String] = [:]
+
     public init() {}
 
     deinit { inputBuffer.deallocate() }
@@ -438,14 +443,26 @@ public final class HIDPP: @unchecked Sendable {
 
                 let name = featureIndex(of: 0x0005).flatMap { deviceName(featureIndex: $0) }
                     ?? receiverLabel(pid)
-                let id = featureIndex(of: 0x0003).flatMap { unitID(featureIndex: $0) }
-                    .map { "U:\($0)" }
-                    ?? String(format: "P:%04X:%02X", pid, slot)
+                // Reuse the unit id we learned for this receiver+slot if this read of it fails,
+                // so one timed-out lookup can't spawn a duplicate "P:" device (and leave the
+                // real one looking asleep).
+                let slotKey = String(format: "%04X:%02X", pid, slot)
+                let id: String
+                if let u = featureIndex(of: 0x0003).flatMap({ unitID(featureIndex: $0) }) {
+                    id = "U:\(u)"
+                    knownIDs[slotKey] = id
+                } else {
+                    id = knownIDs[slotKey] ?? "P:\(slotKey)"
+                }
 
                 if seen.contains(id) { continue }
                 seen.insert(id)
                 out.append(DeviceReading(id: id, name: name, percent: battery.percent,
                                          state: battery.state, transport: trans))
+
+                // Lightspeed dongles and the Powerplay mat host a single mouse, so stop here
+                // instead of waiting out a timeout on every empty slot (~1.2 s each).
+                if Self.singleDeviceReceivers.contains(pid) { break }
             }
         }
         targetDevice = nil

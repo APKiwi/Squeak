@@ -84,4 +84,41 @@ final class DeviceRegistryTests: XCTestCase {
         let reg = DeviceRegistry()
         XCTAssertNil(reg.primary(favouriteID: nil))
     }
+
+    // MARK: - missesBeforeOffline
+
+    func testOneMissStaysOnlineWhenTwoRequired() {
+        var reg = DeviceRegistry(missesBeforeOffline: 2)
+        reg.merge(scan: [reading("U:1", "G502 X", 81)], now: t0)
+        reg.merge(scan: [], now: t1)
+        XCTAssertTrue(reg.devices[0].isOnline)
+        XCTAssertEqual(reg.devices[0].percent, 81)
+        XCTAssertEqual(reg.devices[0].lastSeen, t0)  // a miss never refreshes lastSeen
+    }
+
+    func testSecondConsecutiveMissGoesOffline() {
+        var reg = DeviceRegistry(missesBeforeOffline: 2)
+        reg.merge(scan: [reading("U:1", "G502 X", 81)], now: t0)
+        reg.merge(scan: [], now: t1)
+        reg.merge(scan: [], now: t1)
+        XCTAssertFalse(reg.devices[0].isOnline)
+        XCTAssertEqual(reg.devices[0].percent, 81)   // last-known retained
+    }
+
+    func testSeenDeviceResetsMissCount() {
+        var reg = DeviceRegistry(missesBeforeOffline: 2)
+        reg.merge(scan: [reading("U:1", "G502 X", 81)], now: t0)
+        reg.merge(scan: [], now: t1)                              // miss 1
+        reg.merge(scan: [reading("U:1", "G502 X", 80)], now: t1)  // seen: reset
+        reg.merge(scan: [], now: t1)                              // miss 1 again
+        XCTAssertTrue(reg.devices[0].isOnline)
+    }
+
+    func testMissesBeforeOfflineClampsToAtLeastOne() {
+        var reg = DeviceRegistry(missesBeforeOffline: 0)
+        XCTAssertEqual(reg.missesBeforeOffline, 1)
+        reg.merge(scan: [reading("U:1", "G502 X", 81)], now: t0)
+        reg.merge(scan: [], now: t1)
+        XCTAssertFalse(reg.devices[0].isOnline)
+    }
 }

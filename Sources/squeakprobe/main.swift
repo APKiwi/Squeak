@@ -7,6 +7,23 @@ import HIDPPKit
 let hid = HIDPP()
 hid.verbose = CommandLine.arguments.contains("-v")
 
+// `squeakprobe scanloop` drives scanAll() (the path the menu-bar app polls) 20 times
+// and prints the ids/percent each sweep, to spot missed scans or unstable device ids.
+if CommandLine.arguments.contains("scanloop") {
+    hid.start()
+    Thread.sleep(forTimeInterval: 1.0)
+    for i in 1...20 {
+        let t0 = Date()
+        let scan = hid.scanAll()
+        let ms = Int(Date().timeIntervalSince(t0) * 1000)
+        let desc = scan.isEmpty ? "MISSED" : scan.map { "\($0.id) \($0.name) \($0.percent.map(String.init) ?? "-")%" }.joined(separator: " | ")
+        print("scan \(i) (\(ms) ms): \(desc)")
+        fflush(stdout)
+        Thread.sleep(forTimeInterval: 0.5)
+    }
+    exit(0)
+}
+
 // `squeakprobe recover` reproduces the login-item race: it arms the HID manager but
 // skips the initial scan, so `devices` starts empty exactly as when the app launches
 // before the receiver has enumerated. A correct readBattery() must re-scan and recover.
