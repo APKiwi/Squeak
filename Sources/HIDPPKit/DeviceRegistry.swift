@@ -18,7 +18,14 @@ public struct RegisteredDevice: Identifiable, Equatable, Sendable {
 public struct DeviceRegistry {
     public private(set) var devices: [RegisteredDevice] = []
 
-    public init() {}
+    /// Consecutive scans a device must be missing from before it's shown offline. 1 = the
+    /// first miss (original behaviour); the app uses 2 so one flaky read doesn't say "asleep".
+    public let missesBeforeOffline: Int
+    private var misses: [String: Int] = [:]
+
+    public init(missesBeforeOffline: Int = 1) {
+        self.missesBeforeOffline = max(1, missesBeforeOffline)
+    }
 
     /// Upsert every scanned device as online; mark any tracked device absent from this scan
     /// offline while keeping its last-known values.
@@ -26,6 +33,7 @@ public struct DeviceRegistry {
         let scannedIDs = Set(scan.map(\.id))
 
         for reading in scan {
+            misses[reading.id] = 0
             if let i = devices.firstIndex(where: { $0.id == reading.id }) {
                 devices[i].name = reading.name
                 devices[i].percent = reading.percent
@@ -42,7 +50,11 @@ public struct DeviceRegistry {
         }
 
         for i in devices.indices where !scannedIDs.contains(devices[i].id) {
-            devices[i].isOnline = false   // keep percent/state/lastSeen as last-known
+            let id = devices[i].id
+            misses[id, default: 0] += 1
+            if misses[id, default: 0] >= missesBeforeOffline {
+                devices[i].isOnline = false   // keep percent/state/lastSeen as last-known
+            }
         }
     }
 
